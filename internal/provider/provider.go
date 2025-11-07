@@ -5,6 +5,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
@@ -153,13 +154,33 @@ func (p *pocinfobipemailsProvider) Configure(ctx context.Context, req provider.C
 
 	infobipClient := api.NewAPIClient(configuration)
 
-	//auth := context.WithValue(
-	//	context.Background(),
-	//	infobip.ContextAPIKeys,
-	//	map[string]infobip.APIKey{
-	//		"APIKeyHeader": {Key: api_key, Prefix: "IBSSO"},
-	//	},
-	//)
+	auth := context.WithValue(
+		context.Background(),
+		infobip.ContextAPIKeys,
+		map[string]infobip.APIKey{
+			"APIKeyHeader": {Key: api_key, Prefix: "App"},
+		},
+	)
+
+	apiResponse, httpResponse, err := infobipClient.
+		EmailAPI.
+		GetAllDomains(auth).
+		Execute()
+
+	// Check for errors
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to fetch all domains", err.Error()) // Fail the test with the error message
+		return
+	}
+
+	// Output response details for debugging
+	tflog.Info(ctx, "Response: "+fmt.Sprintf("%+v", apiResponse))
+	tflog.Info(ctx, "HTTP Response Details: "+fmt.Sprintf("%+v", httpResponse))
+
+	// Validate response
+	if apiResponse == nil || apiResponse.Results == nil || len(apiResponse.Results) == 0 {
+		resp.Diagnostics.AddError("Invalid response", "Expected messages, but got: "+fmt.Sprintf("%+v", apiResponse))
+	}
 
 	// Make the HashiCups client available during DataSource and Resource
 	// type Configure methods.

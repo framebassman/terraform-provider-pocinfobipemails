@@ -15,7 +15,3 @@ provider "pocinfobipemails" {
 }
 
 data "pocinfobipemails_email_templates" "edu" {}
-
-output "edu_email_templates" {
-  value = data.pocinfobipemails_email_templates.edu
-}
