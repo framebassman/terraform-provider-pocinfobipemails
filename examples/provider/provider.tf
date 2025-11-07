@@ -1,3 +1,3 @@
-provider "scaffolding" {
+provider "pocinfobipemails" {
   # example configuration here
 }
