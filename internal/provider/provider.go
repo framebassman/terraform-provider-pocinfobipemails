@@ -171,7 +171,7 @@ func (p *pocinfobipemailsProvider) Configure(ctx context.Context, req provider.C
 	tflog.Info(ctx, "Response: "+fmt.Sprintf("%+v", domainsResp))
 
 	// Validate response
-	if domainsResp.Results == nil || len(domainsResp.Results) == 0 {
+	if len(domainsResp.Results) == 0 {
 		resp.Diagnostics.AddError("Invalid response", "Expected messages, but got: "+fmt.Sprintf("%+v", domainsResp))
 	}
 
