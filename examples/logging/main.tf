@@ -6,11 +6,10 @@ terraform {
   }
 }
 
-variable "infobip_base_url" {}
 variable "infobip_api_key" {}
 
 provider "pocinfobipemails" {
-  base_url = var.infobip_base_url
+  base_url = "https://51dg6z.api.infobip.com"
   api_key  = var.infobip_api_key
 }
 
