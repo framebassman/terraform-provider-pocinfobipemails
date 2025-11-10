@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/framebassman/infobip-api-go-client/v3/pkg/infobip"
+	"github.com/framebassman/infobip-api-go-client/v3/pkg/infobip/api"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -15,8 +17,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"github.com/infobip-community/infobip-api-go-sdk/v3/pkg/infobip"
-	"github.com/infobip-community/infobip-api-go-sdk/v3/pkg/infobip/models"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -149,36 +149,47 @@ func (p *pocinfobipemailsProvider) Configure(ctx context.Context, req provider.C
 
 	tflog.Debug(ctx, "Creating Infobip client")
 
-	client, err := infobip.NewClient(base_url, api_key)
+	ctx = tflog.SetField(ctx, "infobip_base_url", base_url)
+	ctx = tflog.SetField(ctx, "infobip_api_key", api_key)
+	ctx = tflog.MaskFieldValuesWithFieldKeys(ctx, "infobip_api_key")
+
+	configuration := infobip.NewConfiguration()
+	configuration.Host = base_url
+
+	infobipClient := api.NewAPIClient(configuration)
+
+	auth := context.WithValue(
+		context.Background(),
+		infobip.ContextAPIKeys,
+		map[string]infobip.APIKey{
+			"APIKeyHeader": {Key: api_key, Prefix: "App"},
+		},
+	)
+
+	apiResponse, httpResponse, err := infobipClient.
+		EmailAPI.
+		GetAllEmailTemplates(auth).
+		Execute()
 
 	// Check for errors
 	if err != nil {
-		resp.Diagnostics.AddError("Failed to fetch all domains", err.Error()) // Fail the test with the error message
-		return
-	}
-
-	params := models.GetEmailDomainsParams{
-		Size: 10,
-		Page: 0,
-	}
-	domainsResp, _, err := client.Email.GetDomains(context.Background(), params)
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to fetch all domains", err.Error())
+		resp.Diagnostics.AddError("Failed to fetch all email templates", err.Error()) // Fail the test with the error message
 		return
 	}
 
 	// Output response details for debugging
-	tflog.Info(ctx, "Response: "+fmt.Sprintf("%+v", domainsResp))
+	tflog.Info(ctx, "Response: "+fmt.Sprintf("%+v", apiResponse))
+	tflog.Info(ctx, "HTTP Response Details: "+fmt.Sprintf("%+v", httpResponse))
 
 	// Validate response
-	if len(domainsResp.Results) == 0 {
-		resp.Diagnostics.AddError("Invalid response", "Expected messages, but got: "+fmt.Sprintf("%+v", domainsResp))
+	if apiResponse == nil || apiResponse.Results == nil {
+		resp.Diagnostics.AddError("Invalid response", "Expected messages, but got: "+fmt.Sprintf("%+v", apiResponse))
 	}
 
 	// Make the HashiCups client available during DataSource and Resource
 	// type Configure methods.
-	resp.DataSourceData = client
-	resp.ResourceData = client
+	resp.DataSourceData = infobipClient
+	resp.ResourceData = infobipClient
 
 	tflog.Info(ctx, "Configured Infobip client", map[string]any{"success": true})
 }
