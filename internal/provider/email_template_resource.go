@@ -250,6 +250,77 @@ func (r *EmailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 }
 
 func (r *EmailTemplateResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
+	// Read plan and prior state
+	var plan EmailTemplateResourceModel
+	diags := req.Plan.Get(ctx, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var state EmailTemplateResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Prepare auth context
+	auth := context.WithValue(
+		context.Background(),
+		infobip.ContextAPIKeys,
+		map[string]infobip.APIKey{"APIKeyHeader": {Key: r.apiKey, Prefix: "App"}},
+	)
+
+	// Call update API
+	emailTemplate, httpResponse, err := r.infobipClient.
+		EmailAPI.
+		UpdateEmailTemplate(auth).
+		ID(state.ID.ValueInt64()).
+		Name(plan.Name.ValueString()).
+		From(plan.From.ValueString()).
+		ReplyTo(plan.ReplyTo.ValueString()).
+		Subject(plan.Subject.ValueString()).
+		Preheader(plan.Preheader.ValueString()).
+		Html(plan.Html.ValueString()).
+		LandingPage(plan.LandingPage.ValueString()).
+		Execute()
+
+	tflog.Info(ctx, fmt.Sprintf("HTTP Response Details: %+v\n", httpResponse))
+
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Error Updating Email Template",
+			"An error was encountered while updating the email template: "+err.Error(),
+		)
+		return
+	}
+
+	// Map response back to state (preserve created_at if not returned)
+	plan.ID = types.Int64Value(int64(emailTemplate.ID))
+	plan.Name = types.StringValue(emailTemplate.Name)
+	plan.From = types.StringValue(emailTemplate.From)
+	plan.ReplyTo = types.StringValue(emailTemplate.ReplyTo)
+	plan.Subject = types.StringValue(emailTemplate.Subject)
+	plan.Preheader = types.StringValue(emailTemplate.Preheader)
+	plan.Html = types.StringValue(normalizeHTML(emailTemplate.HTML))
+	plan.IsHtmlEditable = types.BoolValue(emailTemplate.IsHTMLEditable)
+	plan.LandingPage = types.StringValue(emailTemplate.LandingPageID)
+	plan.ImagePreviewUrl = types.StringValue(emailTemplate.ImagePreviewURL)
+
+	// Preserve created_at from prior state if API doesn't return it
+	if state.CreatedAt.ValueString() != "" {
+		plan.CreatedAt = state.CreatedAt
+	} else {
+		plan.CreatedAt = types.StringValue(time.Now().Format(time.RFC850))
+	}
+	plan.UpdatedAt = types.StringValue(time.Now().Format(time.RFC850))
+
+	// Set updated state
+	diags = resp.State.Set(ctx, plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 }
 
 func (r *EmailTemplateResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
@@ -257,18 +328,43 @@ func (r *EmailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to delete example, got error: %s", err))
-	//     return
-	// }
+	// Prepare auth context
+	auth := context.WithValue(
+		context.Background(),
+		infobip.ContextAPIKeys,
+		map[string]infobip.APIKey{"APIKeyHeader": {Key: r.apiKey, Prefix: "App"}},
+	)
+
+	// Call delete API
+	httpResponse, err := r.infobipClient.
+		EmailAPI.
+		RemoveEmailTemplate(auth).
+		ID(data.ID.ValueInt64()).
+		Execute()
+
+	tflog.Info(ctx, fmt.Sprintf("HTTP Response Details: %+v\n", httpResponse))
+
+	if err != nil {
+		// If resource is already gone, treat as success and remove state.
+		if httpResponse != nil && httpResponse.StatusCode == 404 {
+			tflog.Info(ctx, "Email template already deleted; removing from state", map[string]any{"id": data.ID.ValueInt64()})
+			resp.State.RemoveResource(ctx)
+			return
+		}
+
+		resp.Diagnostics.AddError(
+			"Error Deleting Email Template",
+			"An error was encountered while deleting the email template: "+err.Error(),
+		)
+		return
+	}
+
+	// Remove resource from state to indicate deletion succeeded.
+	resp.State.RemoveResource(ctx)
 }
 
 func (r *EmailTemplateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
