@@ -36,7 +36,7 @@ type EmailTemplateResource struct {
 
 // EmailTemplateResourceModel describes the resource data model.
 type EmailTemplateResourceModel struct {
-	ID              types.Int64  `tfsdk:"id"`
+	ID              types.String `tfsdk:"id"`
 	Name            types.String `tfsdk:"name"`
 	From            types.String `tfsdk:"from"`
 	ReplyTo         types.String `tfsdk:"reply_to"`
@@ -58,7 +58,7 @@ func (r *EmailTemplateResource) Schema(ctx context.Context, req resource.SchemaR
 	resp.Schema = schema.Schema{
 		Description: "Manages an Infobip Email Template resource.",
 		Attributes: map[string]schema.Attribute{
-			"id": schema.Int64Attribute{
+			"id": schema.StringAttribute{
 				Description: "Unique identifier of the email template.",
 				Computed:    true,
 			},
@@ -174,7 +174,7 @@ func (r *EmailTemplateResource) Create(ctx context.Context, req resource.CreateR
 	}
 
 	// Map response body to schema and populate Computed attribute values
-	plan.ID = types.Int64Value(emailTemplate.ID)
+	plan.ID = types.StringValue(fmt.Sprintf("%d", emailTemplate.ID))
 	plan.Name = types.StringValue(emailTemplate.Name)
 	plan.From = types.StringValue(emailTemplate.From)
 	plan.ReplyTo = types.StringValue(emailTemplate.ReplyTo)
@@ -211,10 +211,12 @@ func (r *EmailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 		map[string]infobip.APIKey{"APIKeyHeader": {Key: r.apiKey, Prefix: "App"}},
 	)
 
+	var idInt int64
+	fmt.Sscanf(state.ID.ValueString(), "%d", &idInt)
 	emailTemplate, httpResponse, err := r.infobipClient.
 		EmailAPI.
 		GetEmailTemplate(auth).
-		ID(state.ID.ValueInt64()).
+		ID(idInt).
 		Execute()
 
 	tflog.Info(ctx, fmt.Sprintf("HTTP Response Details: %+v\n", httpResponse))
@@ -227,7 +229,7 @@ func (r *EmailTemplateResource) Read(ctx context.Context, req resource.ReadReque
 	}
 
 	// Overwrite items with refreshed state
-	state.ID = types.Int64Value(emailTemplate.ID)
+	state.ID = types.StringValue(fmt.Sprintf("%d", emailTemplate.ID))
 	state.Name = types.StringValue(emailTemplate.Name)
 	state.From = types.StringValue(emailTemplate.From)
 	state.ReplyTo = types.StringValue(emailTemplate.ReplyTo)
@@ -272,10 +274,12 @@ func (r *EmailTemplateResource) Update(ctx context.Context, req resource.UpdateR
 	)
 
 	// Call update API
+	var idInt int64
+	fmt.Sscanf(state.ID.ValueString(), "%d", &idInt)
 	emailTemplate, httpResponse, err := r.infobipClient.
 		EmailAPI.
 		UpdateEmailTemplate(auth).
-		ID(state.ID.ValueInt64()).
+		ID(idInt).
 		Name(plan.Name.ValueString()).
 		From(plan.From.ValueString()).
 		ReplyTo(plan.ReplyTo.ValueString()).
@@ -296,7 +300,7 @@ func (r *EmailTemplateResource) Update(ctx context.Context, req resource.UpdateR
 	}
 
 	// Map response back to state (preserve created_at if not returned)
-	plan.ID = types.Int64Value(emailTemplate.ID)
+	plan.ID = types.StringValue(fmt.Sprintf("%d", emailTemplate.ID))
 	plan.Name = types.StringValue(emailTemplate.Name)
 	plan.From = types.StringValue(emailTemplate.From)
 	plan.ReplyTo = types.StringValue(emailTemplate.ReplyTo)
@@ -340,10 +344,12 @@ func (r *EmailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 	)
 
 	// Call delete API
+	var idInt int64
+	fmt.Sscanf(data.ID.ValueString(), "%d", &idInt)
 	httpResponse, err := r.infobipClient.
 		EmailAPI.
 		RemoveEmailTemplate(auth).
-		ID(data.ID.ValueInt64()).
+		ID(idInt).
 		Execute()
 
 	tflog.Info(ctx, fmt.Sprintf("HTTP Response Details: %+v\n", httpResponse))
@@ -351,7 +357,7 @@ func (r *EmailTemplateResource) Delete(ctx context.Context, req resource.DeleteR
 	if err != nil {
 		// If resource is already gone, treat as success and remove state.
 		if httpResponse != nil && httpResponse.StatusCode == 404 {
-			tflog.Info(ctx, "Email template already deleted; removing from state", map[string]any{"id": data.ID.ValueInt64()})
+			tflog.Info(ctx, "Email template already deleted; removing from state", map[string]any{"id": data.ID.ValueString()})
 			resp.State.RemoveResource(ctx)
 			return
 		}
