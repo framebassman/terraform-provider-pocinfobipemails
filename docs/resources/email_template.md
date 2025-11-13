@@ -31,7 +31,7 @@ Manages an Infobip Email Template resource.
 ### Read-Only
 
 - `created_at` (String) Timestamp when the email template was created (RFC3339 format).
-- `id` (Number) Unique identifier of the email template.
+- `id` (String) Unique identifier of the email template.
 - `image_preview_url` (String) URL of the email template’s image preview.
 - `is_html_editable` (Boolean) Indicates whether the HTML content can be edited in Infobip UI.
 - `updated_at` (String) Timestamp when the email template was last updated (RFC3339 format).

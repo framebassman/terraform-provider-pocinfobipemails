@@ -64,9 +64,11 @@ func (p *pocinfobipemailsProvider) Schema(_ context.Context, _ provider.SchemaRe
 		Attributes: map[string]schema.Attribute{
 			"base_url": schema.StringAttribute{
 				Optional: false,
+				Required: true,
 			},
 			"api_key": schema.StringAttribute{
 				Optional: false,
+				Required: true,
 			},
 		},
 	}
